@@ -4,7 +4,9 @@ One ComfyUI node that sends your words and/or a picture to a model running in [L
 
 Nothing is added behind your back: what you see in the preset and your input is exactly what the model receives, and the **request** output shows the whole request.
 
-- **Presets** are Markdown files you edit in any text editor. They decide whether they work from words, a picture, or both, and changes apply on the next run, with no restart.
+- **Words → text by default, picture → text when an image arrives.** A preset holds both instructions. Connect an image (and leave its node on) and the node switches to the picture instruction by itself; bypass, mute or disconnect it and it switches back.
+- **Your idea can come from another node** through the `idea` socket, or from the words box.
+- **Presets** are Markdown files you edit in any text editor. Changes apply on the next run, with no restart.
 - **Every LM Studio parameter** has an on/off tick. Off sends nothing, so LM Studio's own per-model settings apply.
 - **Never loads or unloads models.** LM Studio keeps your model loaded; if it isn't, the node says so.
 - **No extra Python packages.** It uses only what ComfyUI already ships, so there's no pip step.
@@ -19,15 +21,15 @@ Nothing is added behind your back: what you see in the preset and your input is 
 2. In LM Studio, load your model and start the local server (Developer tab, default `http://127.0.0.1:1234`).
 3. Add **LM Studio Prompt Enhancer** (category *LM Studio*). Click the status line at the top of the node to test the connection, pick the model, pick a preset and type your idea.
 
-Example workflows for MOSS-Image are in [`example_workflows`](example_workflows): one from words, one from a picture.
+An example MOSS-Image workflow is in [`example_workflows`](example_workflows). Its Load Image node starts bypassed (words → text); press Ctrl+B on it to describe a picture instead.
 
 ## The node
 
 | Part | What it does |
 | --- | --- |
 | Status line | Click to test: is LM Studio answering, is the model loaded, does it accept images? |
-| Preset | The saved instruction, with its description. Reload and Open folder buttons beside it. A preset's own slots (like `{style}`) show as fields here. |
-| Words | Your idea, or in picture mode your changes. `{red\|green}` picks one option by the seed; text in "double quotes" must come back exactly. |
+| Preset | The saved instruction, with its description. Reload and Open folder buttons beside it. A chip shows live which instruction will be used (*words → text* or *picture → text*) and whether the idea comes from the socket. A preset's own slots (like `{style}`) show as fields here. |
+| Words | Your idea, or with a picture your changes (optional). Greyed out while the `idea` socket is connected. `{red\|green}` picks one option by the seed; text in "double quotes" must come back exactly. |
 | Model card | Model, length (short/medium/long), trigger words, temperature, max tokens, seed, thinking, hold. |
 | Advanced | top_p, top_k, min_p, repeat penalty, stop strings, thinking room, checks, variations, one idea per line, token limit, history, on error, JSON schema, extra JSON. |
 | Gear | Server URL, API mode, API token, timeout, picture size and batch handling, streaming, debug, and a switch back to plain widgets. |
@@ -35,7 +37,7 @@ Example workflows for MOSS-Image are in [`example_workflows`](example_workflows)
 
 Every setting is also an ordinary ComfyUI widget underneath. If the panel ever fails to load, the node still works and saves correctly. Right-click the node and choose **LM Studio: show plain widgets** to switch it off yourself.
 
-**Inputs:** `image` (for picture presets), `clip` (optional: your text encoder, to count the prompt in its own tokens and warn past `token_limit`), `instruction_override` (replaces the preset's instruction for one run).
+**Inputs:** `idea` (text from another node; when connected and its node is on, it's used instead of the words box), `image` (switches to the picture instruction while connected and on), `clip` (optional: your text encoder, to count the prompt in its own tokens and warn past `token_limit`), `instruction_override` (replaces the preset's instruction for one run).
 
 **Outputs:** `prompt`, `negative` (for presets that ask for one), `thinking`, `request` (images shown as `[image 1: 1024x1024]`), `info`. With *one per line* or *variations*, each output is a list.
 
@@ -45,10 +47,11 @@ Shipped presets live in `presets/`. Your own go in `ComfyUI/user/default/lmstudi
 
 ```markdown
 ---
-name: MOSS from words
-mode: words            # words | picture | both
-description: Turns a short idea into a MOSS-Image prompt.
-user_template: "The user's idea: {words}"
+name: MOSS
+description: Writes a MOSS-Image prompt from your words, or describes the picture.
+user_template: "The user's idea: {words}"                                 # words → text
+picture_user_template: "Describe this picture.\nThe user's changes: {words}"  # picture → text
+aliases: [MOSS from words, MOSS from picture]  # old names that still load this preset
 settings:              # starting values loaded when you pick the preset
   temperature: 0.7
   max_tokens: 400
@@ -59,18 +62,24 @@ checks:                # optional: tune or switch off the prompt checks
   no_negation: true
   no_labels: true
 ---
+=== words ===
 You are a prompt writer for an image model... Write {length}. Style: {style}.
+
+=== picture ===
+Look at the picture and write a prompt of {length} that would draw it...
 ```
 
+- **Which instruction is used:** the `=== words ===` section by default, and the `=== picture ===` section while an image is connected and its node is on. A bypassed or muted image node sends no picture, so the words section is used. Everything before the first marker counts as the words section, so `=== words ===` is optional.
+- **Presets without sections** use their whole body as the one instruction. With `mode: both` (the default) it gets the picture too when one is connected; `mode: words` ignores pictures; `mode: picture` needs one.
+
 - **Slots:** `{words}` is your text, `{length}` the Length choice, `{trigger}` your trigger words. Anything listed under `slots:` gets its own field. A line whose slots are all empty is dropped cleanly.
-- **What the model receives:** the system message is the preset's instruction; the user message is `user_template` with the slots filled, followed by the image(s) in picture mode. Nothing else.
+- **What the model receives:** the system message is the chosen section; the user message is `user_template` (or `picture_user_template` with a picture) with the slots filled, followed by the image(s). Nothing else. The info line starts with the mode that was used.
 - **Structured output:** `response_format:` takes a JSON schema (see *MOSS layout*).
 - **Negative prompt:** `negative: true` splits the reply at `Negative:` onto the negative output.
 
 | Shipped preset | Mode | Notes |
 | --- | --- | --- |
-| MOSS from words | words | Sentences ordered quality and medium, style and camera, character, action, setting. Never defaults to "photograph". |
-| MOSS from picture | picture | Describes the picture the same way, then applies your words as changes. |
+| MOSS | words → text, picture → text | From words: sentences ordered quality and medium, style and camera, character, action, setting; never defaults to "photograph". From a picture: describes it the same way, then applies your words as changes. Replaces *MOSS from words* and *MOSS from picture* (workflows using those names still load). |
 | MOSS layout | both | MOSS-Image layout JSON (summary plus boxes) for KJNodes' MOSS-Image Prompt Builder import. |
 | Plain rewrite | both | Fix grammar and add detail, no style rules. |
 

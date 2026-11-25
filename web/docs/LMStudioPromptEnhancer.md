@@ -6,33 +6,45 @@ Sends your words and/or a picture to a model running in LM Studio, with a saved 
 
 - Start LM Studio's local server (Developer tab) and load your model, e.g. Gemma 4 31B. The node never loads or unloads models.
 - Click the status line at the top of the node to test the connection, then pick the model.
-- Pick a preset, type your idea, and wire **prompt** into your text encoder.
+- Pick a preset, type your idea (or connect text to the **idea** socket), and wire **prompt** into your text encoder.
+
+## Words or picture
+
+- The node works **words → text** by default.
+- Connect an image and it switches to **picture → text**: the preset's picture instruction is used and the words box becomes your changes (optional).
+- Bypass (Ctrl+B), mute or disconnect the image node and it switches back. The chip under the preset shows which mode the next run will use, and the info line says which one was used.
+- The **idea** socket takes your idea from another node. While it's connected and its node is on, the words box is ignored (it's greyed out).
 
 ## Presets
 
 - A preset is a Markdown file: a short header, then the instruction as plain text.
 - Shipped presets are in the node's `presets` folder. Your own go in `ComfyUI/user/default/lmstudio-prompt-enhancer/presets` (the folder button opens it). A file there with the same name replaces the shipped one, and updates never touch it.
 - Edits apply on the next run, no restart needed. The reload button refreshes the dropdown after you add a file.
-- `mode: words | picture | both` says what the preset works from. Both picks picture mode when an image is connected.
+- A preset can hold two instructions: everything under `=== words ===` (or before any marker) is used for words → text, everything under `=== picture ===` for picture → text. `picture_user_template` is the user message with a picture.
+- A preset without sections uses one instruction for both, as `mode:` says: `both` (default), `words` (ignores pictures) or `picture` (needs one).
 - `settings:` are starting values loaded when you pick the preset; whatever you change on the node afterwards is what's sent.
 
 ```
 ---
 name: My preset
-mode: words
 description: One line shown under the dropdown.
 user_template: "The user's idea: {words}"
+picture_user_template: "Describe this picture.\nThe user's changes: {words}"
 settings:
   temperature: 0.7
 slots:
   style: "film noir"
 ---
+=== words ===
 You are a prompt writer... Write {length}. Use this style: {style}.
+
+=== picture ===
+Look at the picture and write a prompt of {length}...
 ```
 
 ## Slots
 
-- `{words}`: your text. `{length}`: the Length choice. `{trigger}`: your trigger words.
+- `{words}`: your text (from the words box or the idea socket). `{length}`: the Length choice. `{trigger}`: your trigger words.
 - Any other slot listed under `slots:` gets its own field on the node.
 - A line whose slots are all empty is dropped, so optional parts disappear cleanly.
 

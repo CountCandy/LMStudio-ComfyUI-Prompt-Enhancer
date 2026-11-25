@@ -144,8 +144,59 @@ class Panel {
     this.showAdvanced = false;
     this.showGear = false;
     this.lastMin = null;
+    this.live = { image: false, idea: false };
     this.build();
     panels.add(this);
+    // Bypassing or muting a node upstream fires no event here, so the live state is polled.
+    this.timer = setInterval(() => this.liveCheck(), 400);
+    this.liveCheck(true);
+  }
+
+  // -- live state: is a picture / idea actually arriving? -------------------------------------
+
+  // True when the input is connected and the node it comes from will run. A bypassed node passes
+  // on its own input of the same type, if it has one connected; a muted node sends nothing.
+  sourceActive(name, type) {
+    const node = this.node;
+    const graph = node.graph;
+    let slot = node.inputs?.findIndex((i) => i.name === name) ?? -1;
+    if (slot < 0 || !graph) return false;
+    let target = node;
+    for (let hops = 0; hops < 32; hops++) {
+      const link = target.getInputLink ? target.getInputLink(slot) : graph.links?.[target.inputs[slot]?.link];
+      if (!link) return false;
+      const origin = graph.getNodeById?.(link.origin_id);
+      if (!origin) return true; // a subgraph input or something unusual: assume it sends
+      if (origin.mode === 2) return false; // muted ("never")
+      if (origin.mode !== 4) return true; // runs normally
+      slot = origin.inputs?.findIndex((i, k) => (i.type === type || i.type === "*") &&
+        (origin.isInputConnected ? origin.isInputConnected(k) : i.link != null)) ?? -1;
+      if (slot < 0) return false; // bypassed with nothing to pass on
+      target = origin;
+    }
+    return true;
+  }
+
+  liveCheck(force = false) {
+    if (!this.node.graph && !force) return;
+    const live = { image: this.sourceActive("image", "IMAGE"), idea: this.sourceActive("idea", "STRING") };
+    if (!force && live.image === this.live.image && live.idea === this.live.idea) return;
+    this.live = live;
+    this.markWordsBox();
+    if (this.presetChips) this.refresh();
+  }
+
+  markWordsBox() {
+    const w = this.w("words");
+    const box = w?.inputEl ?? w?.element;
+    if (!box) return;
+    box.style.opacity = this.live.idea ? "0.4" : "";
+    box.title = this.live.idea ? "Ignored: the idea socket is connected, so its text is used instead." : "";
+  }
+
+  stop() {
+    clearInterval(this.timer);
+    panels.delete(this);
   }
 
   w(name) { return findWidget(this.node, name); }
@@ -487,7 +538,9 @@ class Panel {
   }
 
   destroy() {
-    panels.delete(this);
+    this.stop();
+    this.live.idea = false;
+    this.markWordsBox();
     for (const w of [this.topWidget, this.bottomWidget]) {
       w?.__lmseObserver?.disconnect();
       const i = this.node.widgets.indexOf(w);
@@ -514,7 +567,19 @@ class Panel {
     const p = this.preset();
     if (p) {
       this.presetInfo.textContent = p.description || "";
-      const chips = [[`from ${p.mode === "both" ? "words or picture" : p.mode}`, ""]];
+      const chips = [];
+      const picture = this.live.image;
+      if (p.mode === "auto" || p.mode === "both") {
+        chips.push([picture ? "picture → text" : "words → text", ""]);
+        chips.push([picture ? "image connected" : "no image: connect one to describe it", "plain"]);
+      } else if (p.mode === "words") {
+        chips.push(["words → text", ""]);
+        if (picture) chips.push(["this preset ignores the image", "warn"]);
+      } else {
+        chips.push(["picture → text", ""]);
+        if (!picture) chips.push(["needs an image", "warn"]);
+      }
+      if (this.live.idea) chips.push(["idea from socket", ""]);
       if (p.structured) chips.push(["JSON output", ""]);
       if (p.negative) chips.push(["+ negative", ""]);
       chips.push([p.source === "user" ? "your preset" : "shipped", "plain"]);
@@ -580,6 +645,12 @@ class Panel {
       const w = this.w("preset");
       if (w?.options) w.options.values = names;
       this.presetSelect.fill(names);
+      // An old preset name (e.g. "MOSS from words") moves to the preset that took it over.
+      const current = this.get("preset");
+      if (current && !names.includes(current)) {
+        const heir = this.presets.find((p) => (p.aliases ?? []).includes(current));
+        if (heir) this.set("preset", heir.name);
+      }
       if (data.problems?.length) this.showWarnings(data.problems.map((p) => "Preset problem: " + p));
       if (force) for (const p of panels) if (p !== this) p.loadPresets(false);
     } catch (e) {
@@ -812,7 +883,7 @@ app.registerExtension({
 
     const removed = nodeType.prototype.onRemoved;
     nodeType.prototype.onRemoved = function () {
-      if (this.panel) panels.delete(this.panel);
+      this.panel?.stop();
       return removed?.apply(this, arguments);
     };
 

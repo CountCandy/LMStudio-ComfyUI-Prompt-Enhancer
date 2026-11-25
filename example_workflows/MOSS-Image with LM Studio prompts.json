@@ -1,8 +1,8 @@
 {
- "id": "bb304e84-e1ee-4b65-b5fa-df181331bbe0",
+ "id": "2c96a6a4-3199-4920-bda3-b4c6c544463e",
  "revision": 0,
- "last_node_id": 12,
- "last_link_id": 12,
+ "last_node_id": 13,
+ "last_link_id": 13,
  "nodes": [
   {
    "id": 1,
@@ -241,7 +241,7 @@
      "pos": null,
      "slot_index": null,
      "links": [
-      11
+      12
      ]
     }
    ],
@@ -257,6 +257,106 @@
   },
   {
    "id": 4,
+   "type": "LoadImage",
+   "pos": [
+    0,
+    516
+   ],
+   "size": [
+    282.798828125,
+    314
+   ],
+   "flags": {},
+   "order": 3,
+   "mode": 4,
+   "showAdvanced": null,
+   "inputs": [
+    {
+     "color_off": null,
+     "color_on": null,
+     "dir": null,
+     "label": null,
+     "localized_name": "image",
+     "locked": null,
+     "name": "image",
+     "nameLocked": null,
+     "removable": null,
+     "shape": null,
+     "type": "COMBO",
+     "widget": {
+      "name": "image"
+     },
+     "link": null
+    },
+    {
+     "color_off": null,
+     "color_on": null,
+     "dir": null,
+     "label": null,
+     "localized_name": "choose file to upload",
+     "locked": null,
+     "name": "upload",
+     "nameLocked": null,
+     "removable": null,
+     "shape": null,
+     "type": "IMAGEUPLOAD",
+     "widget": {
+      "name": "upload"
+     },
+     "link": null
+    }
+   ],
+   "outputs": [
+    {
+     "color_off": null,
+     "color_on": null,
+     "dir": null,
+     "label": null,
+     "localized_name": "IMAGE",
+     "locked": null,
+     "name": "IMAGE",
+     "nameLocked": null,
+     "removable": null,
+     "shape": null,
+     "type": "IMAGE",
+     "pos": null,
+     "slot_index": null,
+     "links": [
+      6
+     ]
+    },
+    {
+     "color_off": null,
+     "color_on": null,
+     "dir": null,
+     "label": null,
+     "localized_name": "MASK",
+     "locked": null,
+     "name": "MASK",
+     "nameLocked": null,
+     "removable": null,
+     "shape": null,
+     "type": "MASK",
+     "pos": null,
+     "slot_index": null,
+     "links": null
+    }
+   ],
+   "title": "Load Image (Ctrl+B: picture \u2192 text)",
+   "properties": {
+    "Node name for S&R": "LoadImage"
+   },
+   "widgets_values": [
+    "example.png",
+    "image"
+   ],
+   "widgets_values_named": {
+    "image": "example.png",
+    "upload": "image"
+   }
+  },
+  {
+   "id": 5,
    "type": "LMStudioPromptEnhancer",
    "pos": [
     380,
@@ -264,13 +364,28 @@
    ],
    "size": [
     400,
-    890
+    905
    ],
    "flags": {},
-   "order": 6,
+   "order": 8,
    "mode": 0,
    "showAdvanced": null,
    "inputs": [
+    {
+     "color_off": null,
+     "color_on": null,
+     "dir": null,
+     "label": null,
+     "localized_name": "idea",
+     "locked": null,
+     "name": "idea",
+     "nameLocked": null,
+     "removable": null,
+     "shape": 7,
+     "type": "STRING",
+     "pos": null,
+     "link": null
+    },
     {
      "color_off": null,
      "color_on": null,
@@ -284,7 +399,7 @@
      "shape": 7,
      "type": "IMAGE",
      "pos": null,
-     "link": null
+     "link": 6
     },
     {
      "color_off": null,
@@ -1030,7 +1145,7 @@
      "pos": null,
      "slot_index": null,
      "links": [
-      6
+      7
      ]
     },
     {
@@ -1102,7 +1217,7 @@
     "Node name for S&R": "LMStudioPromptEnhancer"
    },
    "widgets_values": [
-    "MOSS from words",
+    "MOSS",
     "a fox librarian reading by candlelight in a cozy tower library",
     "google/gemma-4-31b",
     false,
@@ -1148,7 +1263,7 @@
     false
    ],
    "widgets_values_named": {
-    "preset": "MOSS from words",
+    "preset": "MOSS",
     "words": "a fox librarian reading by candlelight in a cozy tower library",
     "model": "google/gemma-4-31b",
     "Auto-refresh after generation": false,
@@ -1195,7 +1310,7 @@
    }
   },
   {
-   "id": 5,
+   "id": 6,
    "type": "SkipLayerGuidanceDiTSimple",
    "pos": [
     830,
@@ -1206,7 +1321,7 @@
     130
    ],
    "flags": {},
-   "order": 5,
+   "order": 6,
    "mode": 0,
    "showAdvanced": null,
    "inputs": [
@@ -1331,7 +1446,7 @@
    }
   },
   {
-   "id": 6,
+   "id": 7,
    "type": "CLIPTextEncode",
    "pos": [
     830,
@@ -1342,7 +1457,7 @@
     200
    ],
    "flags": {},
-   "order": 8,
+   "order": 9,
    "mode": 0,
    "showAdvanced": null,
    "inputs": [
@@ -1376,7 +1491,7 @@
      "widget": {
       "name": "text"
      },
-     "link": 6
+     "link": 7
     }
    ],
    "outputs": [
@@ -1395,7 +1510,7 @@
      "pos": null,
      "slot_index": null,
      "links": [
-      7
+      8
      ]
     }
    ],
@@ -1410,7 +1525,7 @@
    }
   },
   {
-   "id": 7,
+   "id": 8,
    "type": "CLIPTextEncode",
    "pos": [
     830,
@@ -1474,7 +1589,7 @@
      "pos": null,
      "slot_index": null,
      "links": [
-      8
+      9
      ]
     }
    ],
@@ -1489,7 +1604,7 @@
    }
   },
   {
-   "id": 8,
+   "id": 9,
    "type": "EmptyFlux2LatentImage",
    "pos": [
     830,
@@ -1500,7 +1615,7 @@
     106
    ],
    "flags": {},
-   "order": 3,
+   "order": 4,
    "mode": 0,
    "showAdvanced": null,
    "inputs": [
@@ -1572,7 +1687,7 @@
      "pos": null,
      "slot_index": null,
      "links": [
-      9
+      10
      ]
     }
    ],
@@ -1591,7 +1706,7 @@
    }
   },
   {
-   "id": 9,
+   "id": 10,
    "type": "KSampler",
    "pos": [
     1280,
@@ -1602,7 +1717,7 @@
     262
    ],
    "flags": {},
-   "order": 9,
+   "order": 10,
    "mode": 0,
    "showAdvanced": null,
    "inputs": [
@@ -1634,7 +1749,7 @@
      "shape": null,
      "type": "CONDITIONING",
      "pos": null,
-     "link": 7
+     "link": 8
     },
     {
      "color_off": null,
@@ -1649,7 +1764,7 @@
      "shape": null,
      "type": "CONDITIONING",
      "pos": null,
-     "link": 8
+     "link": 9
     },
     {
      "color_off": null,
@@ -1664,7 +1779,7 @@
      "shape": null,
      "type": "LATENT",
      "pos": null,
-     "link": 9
+     "link": 10
     },
     {
      "color_off": null,
@@ -1785,7 +1900,7 @@
      "pos": null,
      "slot_index": null,
      "links": [
-      10
+      11
      ]
     }
    ],
@@ -1812,7 +1927,7 @@
    }
   },
   {
-   "id": 10,
+   "id": 11,
    "type": "VAEDecode",
    "pos": [
     1600,
@@ -1823,7 +1938,7 @@
     46
    ],
    "flags": {},
-   "order": 10,
+   "order": 11,
    "mode": 0,
    "showAdvanced": null,
    "inputs": [
@@ -1840,7 +1955,7 @@
      "shape": null,
      "type": "LATENT",
      "pos": null,
-     "link": 10
+     "link": 11
     },
     {
      "color_off": null,
@@ -1855,7 +1970,7 @@
      "shape": null,
      "type": "VAE",
      "pos": null,
-     "link": 11
+     "link": 12
     }
    ],
    "outputs": [
@@ -1874,7 +1989,7 @@
      "pos": null,
      "slot_index": null,
      "links": [
-      12
+      13
      ]
     }
    ],
@@ -1883,7 +1998,7 @@
    }
   },
   {
-   "id": 11,
+   "id": 12,
    "type": "SaveImage",
    "pos": [
     1600,
@@ -1894,7 +2009,7 @@
     58
    ],
    "flags": {},
-   "order": 11,
+   "order": 12,
    "mode": 0,
    "showAdvanced": null,
    "inputs": [
@@ -1911,7 +2026,7 @@
      "shape": null,
      "type": "IMAGE",
      "pos": null,
-     "link": 12
+     "link": 13
     },
     {
      "color_off": null,
@@ -1958,28 +2073,28 @@
    }
   },
   {
-   "id": 12,
+   "id": 13,
    "type": "MarkdownNote",
    "pos": [
     0,
-    516
+    900
    ],
    "size": [
     330,
-    220
+    330
    ],
    "flags": {},
-   "order": 4,
+   "order": 5,
    "mode": 0,
    "showAdvanced": null,
    "inputs": [],
    "outputs": [],
    "properties": {},
    "widgets_values": [
-    "## LM Studio Prompt Enhancer + MOSS-Image\n\nType a short idea in the enhancer; it writes the full MOSS prompt and passes it to the text encoder.\n\n- Start LM Studio's server and load your model (e.g. Gemma 4 31B). Click the status line on the node to test.\n- clip is wired into the enhancer only to count the prompt in MOSS's own tokens (warns past 512).\n- Seed fixed: the same prompt every queue. Hold freezes the prompt while you tweak the sampler.\n- Sampler settings follow ComfyUI's MOSS-Image template. Model files: huggingface.co/Comfy-Org/MOSS-Image"
+    "## LM Studio Prompt Enhancer + MOSS-Image\n\n**Words \u2192 text** (as saved): type a short idea in the enhancer; it writes the full MOSS prompt for the text encoder.\n\n**Picture \u2192 text:** select Load Image and press Ctrl+B to un-bypass it. The enhancer switches to the preset's picture instruction by itself; the words box becomes your changes (optional). Bypass it again to go back.\n\nThe idea socket takes text from any other node instead of the words box.\n\n- Start LM Studio's server and load your model (e.g. Gemma 4 31B). Click the status line on the node to test.\n- clip is wired into the enhancer only to count the prompt in MOSS's own tokens (warns past 512).\n- Seed fixed: the same prompt every queue. Hold freezes the prompt while you tweak the sampler.\n- Sampler settings follow ComfyUI's MOSS-Image template. Model files: huggingface.co/Comfy-Org/MOSS-Image"
    ],
    "widgets_values_named": {
-    "text": "## LM Studio Prompt Enhancer + MOSS-Image\n\nType a short idea in the enhancer; it writes the full MOSS prompt and passes it to the text encoder.\n\n- Start LM Studio's server and load your model (e.g. Gemma 4 31B). Click the status line on the node to test.\n- clip is wired into the enhancer only to count the prompt in MOSS's own tokens (warns past 512).\n- Seed fixed: the same prompt every queue. Hold freezes the prompt while you tweak the sampler.\n- Sampler settings follow ComfyUI's MOSS-Image template. Model files: huggingface.co/Comfy-Org/MOSS-Image"
+    "text": "## LM Studio Prompt Enhancer + MOSS-Image\n\n**Words \u2192 text** (as saved): type a short idea in the enhancer; it writes the full MOSS prompt for the text encoder.\n\n**Picture \u2192 text:** select Load Image and press Ctrl+B to un-bypass it. The enhancer switches to the preset's picture instruction by itself; the words box becomes your changes (optional). Bypass it again to go back.\n\nThe idea socket takes text from any other node instead of the words box.\n\n- Start LM Studio's server and load your model (e.g. Gemma 4 31B). Click the status line on the node to test.\n- clip is wired into the enhancer only to count the prompt in MOSS's own tokens (warns past 512).\n- Seed fixed: the same prompt every queue. Hold freezes the prompt while you tweak the sampler.\n- Sampler settings follow ComfyUI's MOSS-Image template. Model files: huggingface.co/Comfy-Org/MOSS-Image"
    },
    "color": "#432",
    "bgcolor": "#653"
@@ -1990,15 +2105,15 @@
    1,
    1,
    0,
-   5,
+   6,
    0,
    "MODEL"
   ],
   [
    2,
-   5,
+   6,
    0,
-   9,
+   10,
    0,
    "MODEL"
   ],
@@ -2006,20 +2121,12 @@
    3,
    2,
    0,
-   4,
-   1,
-   "CLIP"
-  ],
-  [
-   4,
-   2,
-   0,
-   6,
-   0,
-   "CLIP"
-  ],
-  [
    5,
+   2,
+   "CLIP"
+  ],
+  [
+   4,
    2,
    0,
    7,
@@ -2027,58 +2134,74 @@
    "CLIP"
   ],
   [
+   5,
+   2,
+   0,
+   8,
+   0,
+   "CLIP"
+  ],
+  [
    6,
    4,
    0,
-   6,
+   5,
+   1,
+   "IMAGE"
+  ],
+  [
+   7,
+   5,
+   0,
+   7,
    1,
    "STRING"
   ],
   [
+   8,
    7,
-   6,
    0,
-   9,
+   10,
    1,
    "CONDITIONING"
   ],
   [
-   8,
-   7,
-   0,
    9,
+   8,
+   0,
+   10,
    2,
    "CONDITIONING"
   ],
   [
+   10,
    9,
-   8,
    0,
-   9,
+   10,
    3,
-   "LATENT"
-  ],
-  [
-   10,
-   9,
-   0,
-   10,
-   0,
    "LATENT"
   ],
   [
    11,
+   10,
+   0,
+   11,
+   0,
+   "LATENT"
+  ],
+  [
+   12,
    3,
    0,
-   10,
+   11,
    1,
    "VAE"
   ],
   [
-   12,
-   10,
-   0,
+   13,
    11,
+   0,
+   12,
    0,
    "IMAGE"
   ]

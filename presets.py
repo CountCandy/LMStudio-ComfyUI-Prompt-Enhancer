@@ -1,7 +1,7 @@
 """Saved instructions (presets): Markdown files with a short header.
 
     ---
-    name: MOSS from words
+    name: MOSS
     mode: words            # words | picture | both
     description: Turns a short idea into a MOSS prompt.
     user_template: "The user's idea: {words}"
@@ -10,7 +10,13 @@
     slots:                 # optional extra fields shown on the node
       style: ""
     ---
-    You are a prompt writer...
+    === words ===
+    You are a prompt writer... (used when no picture is connected)
+    === picture ===
+    You describe pictures... (used when an image is connected and its node is on)
+
+A preset with both sections switches by itself: words to text by default, picture to text when
+an image arrives. Without section markers the whole body is one instruction, used as `mode` says.
 
 Shipped presets live in this pack's presets/ folder. Your own live in
 ComfyUI/user/default/lmstudio-prompt-enhancer/presets/ and win over a shipped one with the same name.
@@ -34,7 +40,8 @@ PACK_DIR = os.path.dirname(os.path.abspath(__file__))
 SHIPPED_DIR = os.path.join(PACK_DIR, "presets")
 USER_SUBDIR = "lmstudio-prompt-enhancer"
 
-MODES = ("words", "picture", "both")
+MODES = ("words", "picture", "both")  # "auto" is set for presets with both sections
+SECTION_RE = re.compile(r"(?im)^[ \t]*===[ \t]*(words|picture)[ \t]*===[ \t]*$")
 BUILTIN_SLOTS = ("words", "length", "trigger")
 
 FRONT_RE = re.compile(r"\A﻿?---[ \t]*\r?\n(.*?)\r?\n---[ \t]*(?:\r?\n|\Z)", re.DOTALL)
@@ -48,10 +55,13 @@ class PresetError(Exception):
 @dataclass
 class Preset:
     name: str
-    instruction: str
-    mode: str = "words"
+    instruction: str  # the words instruction (or the only one)
+    mode: str = "both"  # words | picture | both | auto
     description: str = ""
     user_template: str = "{words}"
+    picture_instruction: str | None = None  # from an === picture === section
+    picture_user_template: str | None = None
+    aliases: list[str] = field(default_factory=list)  # old names that still find this preset
     settings: dict[str, Any] = field(default_factory=dict)
     slots: dict[str, str] = field(default_factory=dict)  # extra slots and their defaults
     lengths: dict[str, str] = field(default_factory=dict)  # overrides for short / medium / long wording
@@ -63,13 +73,30 @@ class Preset:
     source: str = "shipped"  # shipped | user
     digest: str = ""
 
+    def instruction_for(self, mode: str) -> str:
+        if mode == "picture" and self.picture_instruction is not None:
+            return self.picture_instruction
+        return self.instruction
+
+    def template_for(self, mode: str) -> str:
+        if mode == "picture" and self.picture_user_template is not None:
+            return self.picture_user_template
+        return self.user_template
+
+    def _texts(self) -> str:
+        return "\n".join(t for t in (self.instruction, self.user_template, self.picture_instruction,
+                                      self.picture_user_template) if t)
+
+    def uses(self, slot: str) -> bool:
+        return "{" + slot + "}" in self._texts()
+
     def summary(self) -> dict:
         return {
             "name": self.name, "mode": self.mode, "description": self.description,
             "slots": self.slots, "settings": self.settings, "source": self.source,
             "structured": self.response_format is not None, "negative": self.negative,
-            "uses_length": "{length}" in self.instruction or "{length}" in self.user_template,
-            "uses_trigger": "{trigger}" in self.instruction or "{trigger}" in self.user_template,
+            "uses_length": self.uses("length"), "uses_trigger": self.uses("trigger"),
+            "aliases": self.aliases,
         }
 
 
@@ -111,12 +138,17 @@ def parse(text: str, path: str = "preset.md", source: str = "shipped") -> Preset
     match = FRONT_RE.match(text)
     header = _parse_header(match.group(1), path) if match else {}
     body = text[match.end():] if match else text
-    instruction = body.strip("\r\n").rstrip()
     stem = os.path.splitext(os.path.basename(path))[0]
     name = str(header.get("name") or stem).strip()
-    mode = str(header.get("mode") or "words").strip().lower()
+    mode = str(header.get("mode") or "both").strip().lower()
     if mode not in MODES:
         raise PresetError(f"{os.path.basename(path)}: mode must be words, picture or both, not {mode!r}.")
+    instruction, picture_instruction = _sections(body, path)
+    if picture_instruction is not None:
+        if instruction:
+            mode = "auto"  # words to text by default, picture to text when an image is connected
+        else:
+            mode, instruction, picture_instruction = "picture", picture_instruction, None
     slots: dict[str, str] = {}
     raw_slots = header.get("slots") or {}
     if isinstance(raw_slots, list):
@@ -150,12 +182,36 @@ def parse(text: str, path: str = "preset.md", source: str = "shipped") -> Preset
         name=name, instruction=instruction, mode=mode,
         description=str(header.get("description") or "").strip(),
         user_template=str(header.get("user_template") if header.get("user_template") is not None else "{words}"),
+        picture_instruction=picture_instruction,
+        picture_user_template=(str(header["picture_user_template"])
+                               if header.get("picture_user_template") is not None else None),
+        aliases=[str(a).strip() for a in _as_list(header.get("aliases")) if str(a).strip()],
         settings=dict(settings), slots=slots, lengths={str(k): str(v) for k, v in lengths.items()},
         checks=dict(checks), response_format=response_format,
         negative=bool(header.get("negative", False)),
         negative_marker=str(header.get("negative_marker") or "Negative:"),
         path=path, source=source, digest=hashlib.sha256(text.encode("utf-8")).hexdigest(),
     )
+
+
+def _as_list(value) -> list:
+    if value is None:
+        return []
+    return value if isinstance(value, list) else [value]
+
+
+def _sections(body: str, path: str) -> tuple[str, str | None]:
+    """(words instruction, picture instruction or None). Text before the first marker counts as words."""
+    parts = SECTION_RE.split(body)
+    words = [parts[0]]
+    picture: list[str] | None = None
+    for kind, text in zip(parts[1::2], parts[2::2]):
+        if kind.lower() == "picture":
+            picture = (picture or []) + [text]
+        else:
+            words.append(text)
+    clean = lambda chunks: "\n\n".join(c.strip("\r\n").rstrip() for c in chunks if c.strip()).strip("\r\n")
+    return clean(words), (clean(picture) if picture is not None else None)
 
 
 class Library:
@@ -223,6 +279,9 @@ class Library:
         presets, problems = self.scan()
         if name in presets:
             return presets[name]
+        for preset in presets.values():  # an old name, e.g. "MOSS from words" is now "MOSS"
+            if name in preset.aliases:
+                return preset
         hint = f" Problems reading presets: {'; '.join(problems)}" if problems else ""
         raise PresetError(f"Preset {name!r} wasn't found in {self.shipped_dir} or {self.user_dir}.{hint}")
 

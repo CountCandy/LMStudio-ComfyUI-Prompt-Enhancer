@@ -14,7 +14,7 @@ GOOD = ("An oil painting in soft morning light, seen from a low angle. A small r
         "mossy stones toward distant blue hills under a clear sky.")
 
 
-def run(fake, preset="MOSS from words", image=None, **kw):
+def run(fake, preset="MOSS", image=None, **kw):
     kw.setdefault("words", "a fox reading")
     kw.setdefault("length", "medium")
     opts = engine.options(model="google/gemma-4-31b", server_url=fake.url, stream=False, **kw)
@@ -43,15 +43,61 @@ def test_empty_words_stops_before_calling(fake):
     assert not fake.requests
 
 
-def test_picture_preset_needs_image(fake):
+def test_picture_only_preset_needs_image(fake):
+    p = presets.parse("---\nname: P\nmode: picture\n---\nDescribe.", "p.md")
+    opts = engine.options(model="google/gemma-4-31b", server_url=fake.url, words="")
     with pytest.raises(engine.UserError, match="connect an image"):
-        run(fake, preset="MOSS from picture", words="")
+        engine.Runner(opts, p).run()
+    assert not fake.requests
+
+
+def test_moss_defaults_to_words_and_switches_with_an_image(fake):
+    fake.replies = [GOOD, GOOD]
+    words_job = run(fake, words="a fox reading").jobs[0]
+    body = fake.requests[-1][1]
+    assert "Turn the user's idea" in body["messages"][0]["content"]
+    assert body["messages"][1]["content"] == "The user's idea: a fox reading"
+    assert words_job.info.startswith("words → text")
+    img = np.random.rand(1, 32, 32, 3).astype(np.float32)
+    pic_job = run(fake, words="", image=img).jobs[0]
+    body = fake.requests[-1][1]
+    assert "Look at the picture" in body["messages"][0]["content"]
+    assert body["messages"][1]["content"][0]["text"] == "Describe this picture as a prompt."
+    assert pic_job.info.startswith("picture → text")
+
+
+def test_no_image_and_no_words_asks_for_words(fake):
+    with pytest.raises(engine.UserError, match="words box"):
+        run(fake, words="")
+
+
+def test_idea_socket_replaces_words_box(fake):
+    fake.replies = [GOOD]
+    job = run(fake, words="ignored box text", idea="a heron at dawn").jobs[0]
+    assert fake.requests[-1][1]["messages"][1]["content"] == "The user's idea: a heron at dawn"
+    assert "idea from socket" in job.info and job.idea == "a heron at dawn"
+
+
+def test_idea_socket_lines_and_empty(fake):
+    fake.replies = [GOOD, GOOD]
+    result = run(fake, idea="a fox\na bear", one_per_line=True, checks=False)
+    assert sorted(j.idea for j in result.jobs) == ["a bear", "a fox"]
+    with pytest.raises(engine.UserError, match="idea socket is empty"):
+        run(fake, words="box text", idea="  ")
+
+
+def test_idea_with_picture_is_the_change_list(fake):
+    fake.replies = [GOOD]
+    img = np.random.rand(1, 32, 32, 3).astype(np.float32)
+    run(fake, words="", idea="make it night", image=img)
+    content = fake.requests[-1][1]["messages"][1]["content"]
+    assert content[0]["text"] == "Describe this picture as a prompt.\nThe user's changes: make it night"
 
 
 def test_picture_run_sends_image_and_drops_empty_changes_line(fake):
     fake.replies = [GOOD]
     img = np.random.rand(1, 64, 96, 3).astype(np.float32)
-    job = run(fake, preset="MOSS from picture", words="", image=img).jobs[0]
+    job = run(fake, words="", image=img).jobs[0]
     content = fake.requests[-1][1]["messages"][1]["content"]
     assert content[0] == {"type": "text", "text": "Describe this picture as a prompt."}
     assert content[1]["type"] == "image_url"
@@ -66,12 +112,12 @@ def test_both_mode_picks_by_image(fake):
 
 def test_model_not_loaded_stops(fake):
     with pytest.raises(lm.ModelNotLoaded):
-        engine.Runner(engine.options(model="qwen/qwen3-8b", server_url=fake.url, words="x"), LIB.get("MOSS from words")).run()
+        engine.Runner(engine.options(model="qwen/qwen3-8b", server_url=fake.url, words="x"), LIB.get("MOSS")).run()
 
 
 def test_pass_through_on_error(fake):
     opts = engine.options(model="qwen/qwen3-8b", server_url=fake.url, words="my idea", on_error=engine.ON_ERROR_PASS)
-    result = engine.Runner(opts, LIB.get("MOSS from words")).run()
+    result = engine.Runner(opts, LIB.get("MOSS")).run()
     assert result.passed_through and result.jobs[0].prompt == "my idea"
     assert "Passed through" in result.warnings[0]
 
@@ -159,7 +205,7 @@ def test_history_written(fake, data_dir):
     run(fake, words="a fox")
     with open(os.path.join(data_dir, "history.jsonl"), encoding="utf-8") as f:
         entry = json.loads(f.readline())
-    assert entry["prompt"] == GOOD and entry["preset"] == "MOSS from words" and entry["words"] == "a fox"
+    assert entry["prompt"] == GOOD and entry["preset"] == "MOSS" and entry["words"] == "a fox"
 
 
 def test_negative_split(fake, tmp_path):

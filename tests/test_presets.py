@@ -18,13 +18,34 @@ def test_shipped_presets_parse():
     lib = presets.Library(user_dir_path="/nonexistent")
     found, problems = lib.scan()
     assert not problems
-    assert {"MOSS from words", "MOSS from picture", "Plain rewrite", "MOSS layout"} <= set(found)
-    words = found["MOSS from words"]
-    assert words.mode == "words" and "{words}" in words.user_template
-    assert words.settings["max_tokens"] == 400
-    assert found["MOSS from picture"].mode == "picture"
+    assert set(found) == {"MOSS", "Plain rewrite", "MOSS layout"}
+    moss = found["MOSS"]
+    assert moss.mode == "auto" and moss.settings["max_tokens"] == 400
+    assert moss.instruction.startswith("You are a prompt writer") and "Turn the user's idea" in moss.instruction
+    assert "Look at the picture" in moss.picture_instruction and "Turn the user's idea" not in moss.picture_instruction
+    assert moss.template_for("words") == "The user's idea: {words}"
+    assert moss.template_for("picture").startswith("Describe this picture")
     layout = found["MOSS layout"]
     assert layout.response_format["type"] == "object" and layout.slots == {"width": "1024", "height": "1024"}
+
+
+def test_old_names_still_find_moss():
+    lib = presets.Library(user_dir_path="/nonexistent")
+    assert lib.get("MOSS from words").name == "MOSS"
+    assert lib.get("MOSS from picture").name == "MOSS"
+    assert "MOSS from words" not in lib.names()
+
+
+def test_sections():
+    p = presets.parse("---\nname: S\n---\nShared words text.\n=== picture ===\nDescribe it.\n", "s.md")
+    assert (p.mode, p.instruction, p.picture_instruction) == ("auto", "Shared words text.", "Describe it.")
+    p = presets.parse("=== words ===\nW\n\n=== PICTURE ===\nP", "s.md")
+    assert (p.instruction, p.picture_instruction) == ("W", "P")
+    p = presets.parse("=== picture ===\nOnly pictures.", "s.md")
+    assert (p.mode, p.instruction, p.picture_instruction) == ("picture", "Only pictures.", None)
+    p = presets.parse("No sections; a === picture === in the middle of a line is just text.", "s.md")
+    assert p.mode == "both" and p.picture_instruction is None
+    assert p.instruction_for("picture") == p.instruction
 
 
 def test_parse_header_and_body():
@@ -35,7 +56,7 @@ def test_parse_header_and_body():
 
 def test_no_header_uses_file_name():
     p = presets.parse("Just an instruction.", "/a/My preset.md")
-    assert p.name == "My preset" and p.mode == "words" and p.user_template == "{words}"
+    assert p.name == "My preset" and p.mode == "both" and p.user_template == "{words}"
 
 
 def test_bad_mode_reported():

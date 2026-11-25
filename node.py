@@ -22,7 +22,7 @@ SAVED_PROPERTY = "lmse_saved"  # where the panel keeps the last result in the wo
 HELD: dict[str, dict] = {}
 
 OUTPUT_NAMES = ("prompt", "negative", "thinking", "request", "info")
-DEFAULT_PRESET = "MOSS from words"
+DEFAULT_PRESET = "MOSS"
 
 DESCRIPTION = (
     "Sends your words and/or a picture to a model running in LM Studio, with the saved instruction "
@@ -51,9 +51,10 @@ class LMStudioPromptEnhancer(io.ComfyNode):
             inputs=[
                 io.Combo.Input("preset", options=(names := presets.LIBRARY.names()),
                                default=DEFAULT_PRESET if DEFAULT_PRESET in names else names[0],
-                               tooltip="The saved instruction. Its file says whether it works from words, a picture, or both."),
+                               tooltip="The saved instruction. A preset with words and picture sections uses the words one "
+                                       "by default and the picture one when an image is connected."),
                 io.String.Input("words", multiline=True, default="", dynamic_prompts=False,
-                                placeholder="Your idea. In picture mode: your changes (optional). {a|b} picks one.",
+                                placeholder="Your idea (or connect one to the idea socket). With a picture: your changes, optional. {a|b} picks one.",
                                 tooltip="Your idea in words mode; your changes in picture mode. Choices in braces "
                                         "like {red|blue} are picked by the seed. Text in \"quotes\" must come back exactly."),
                 io.Combo.Input("model", options=[], remote=io.RemoteOptions(route="/lmse/models", refresh_button=True),
@@ -119,7 +120,12 @@ class LMStudioPromptEnhancer(io.ComfyNode):
                 io.Boolean.Input("stream", default=True, advanced=True, tooltip="Show the text on the node as it's written."),
                 io.Boolean.Input("debug", default=False, advanced=True, tooltip="Print the full request and reply to the console."),
                 # sockets
-                io.Image.Input("image", optional=True, tooltip="The picture, for picture presets."),
+                io.String.Input("idea", optional=True, force_input=True,
+                                tooltip="Your idea from another node. When connected (and its node isn't bypassed), "
+                                        "this text is used instead of the words box."),
+                io.Image.Input("image", optional=True,
+                               tooltip="The picture. Connected and on: the preset's picture instruction is used. "
+                                       "Not connected, bypassed or muted: its words instruction."),
                 io.Clip.Input("clip", optional=True,
                               tooltip="Optional: your text encoder, to count the prompt in its own tokens and warn past token_limit."),
                 io.String.Input("instruction_override", optional=True, force_input=True,
@@ -159,7 +165,8 @@ class LMStudioPromptEnhancer(io.ComfyNode):
             return preset
 
     @classmethod
-    def execute(cls, preset, hold=False, image=None, clip=None, instruction_override=None, **kwargs) -> io.NodeOutput:
+    def execute(cls, preset, hold=False, image=None, clip=None, instruction_override=None, idea=None,
+                **kwargs) -> io.NodeOutput:
         uid = str(cls.hidden.unique_id) if cls.hidden is not None else ""
         if hold:
             saved = HELD.get(uid) or _saved_in_workflow(cls.hidden.extra_pnginfo if cls.hidden else None, uid)
@@ -168,7 +175,7 @@ class LMStudioPromptEnhancer(io.ComfyNode):
             return _output(saved, held=True)
 
         p = presets.LIBRARY.get(preset)
-        opts = engine.options(**kwargs, instruction_override=instruction_override)
+        opts = engine.options(**kwargs, instruction_override=instruction_override, idea=idea)
 
         import comfy.model_management as mm
 

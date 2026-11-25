@@ -75,7 +75,10 @@ DEFAULTS: dict[str, Any] = {
     "server_url": lm.DEFAULT_URL, "api_mode": lm.API_OPENAI, "timeout": 300,
     "max_image_side": media.DEFAULT_MAX_SIDE, "image_batch": "first", "stream": True, "debug": False,
     "instruction_override": None,
+    "idea": None,  # text from the idea socket; when connected it replaces the words box
 }
+
+MODE_LABELS = {"words": "words → text", "picture": "picture → text"}
 
 
 TOKEN_SETTING = "LMStudioPromptEnhancer.ApiToken"
@@ -137,7 +140,9 @@ def _json_field(text: str, label: str) -> Any:
 
 
 def pick_mode(preset: presets_mod.Preset, has_image: bool) -> str:
-    if preset.mode == "both":
+    """words to text unless an image arrives. A bypassed or muted image node sends no image,
+    so it switches back to words by itself."""
+    if preset.mode in ("auto", "both"):
         return "picture" if has_image else "words"
     return preset.mode
 
@@ -150,8 +155,8 @@ def build_request(opts: dict, preset: presets_mod.Preset, idea: str, mode: str,
     values["length"] = pt.length_text(opts["length"], preset.lengths)
     values["trigger"] = str(opts["trigger_words"] or "").strip()
     instruction = opts.get("instruction_override")
-    system = pt.fill(instruction if instruction and instruction.strip() else preset.instruction, values)
-    user_text = pt.fill(preset.user_template, values)
+    system = pt.fill(instruction if instruction and instruction.strip() else preset.instruction_for(mode), values)
+    user_text = pt.fill(preset.template_for(mode), values)
     response_format = preset.response_format
     if opts["use_response_format"]:
         response_format = _json_field(opts["response_format"], "response_format")
@@ -174,7 +179,7 @@ def word_range(opts: dict, preset: presets_mod.Preset) -> tuple[int, int] | None
     words = preset.checks.get("words")
     if isinstance(words, (list, tuple)) and len(words) == 2:
         return int(words[0]), int(words[1])
-    if "{length}" in preset.instruction or "{length}" in preset.user_template:
+    if preset.uses("length"):
         return pt.LENGTHS.get(opts["length"], ("", None))[1]
     return None
 
@@ -219,8 +224,13 @@ class Runner:
             return RunResult([JobResult(prompt=i.strip(), info=f"passed through: {e}", warnings=[f"Passed through: {e}"],
                                         idea=i) for i in ideas], passed_through=True)
 
+    @property
+    def idea_connected(self) -> bool:
+        return self.opts.get("idea") is not None
+
     def _ideas(self) -> list[str]:
-        words = str(self.opts["words"] or "")
+        source = self.opts["idea"] if self.idea_connected else self.opts["words"]
+        words = str(source or "")
         if self.opts["one_per_line"]:
             ideas = [line for line in words.splitlines() if line.strip()]
             return ideas or [""]
@@ -232,12 +242,14 @@ class Runner:
             raise UserError("Pick a model: the dropdown lists the models LM Studio reports.")
         STATE["server_url"] = opts["server_url"]
         STATE["api_mode"] = opts["api_mode"]
-        mode = pick_mode(preset, self.image is not None)
+        mode = self.mode = pick_mode(preset, self.image is not None)
         ideas = self._ideas()
         if mode == "picture" and self.image is None:
-            raise UserError(f"The preset {preset.name!r} works from a picture: connect an image.")
+            raise UserError(f"The preset {preset.name!r} works from a picture: connect an image (and make sure its node isn't bypassed).")
         if mode == "words" and not any(i.strip() for i in ideas):
-            raise UserError(f"Type your idea in words: the preset {preset.name!r} works from words.")
+            if self.idea_connected:
+                raise UserError("The text coming into the idea socket is empty.")
+            raise UserError("Type your idea in the words box, or connect text to the idea socket.")
 
         images = media.encode_images(self.image, opts["image_batch"], int(opts["max_image_side"])) if mode == "picture" else []
         info = lm.check_model(self.client.base_url, opts["model"], min(10.0, float(opts["timeout"])), self.client.token)
@@ -316,6 +328,7 @@ class Runner:
         negative = ""
         if preset.negative and not structured:
             text, negative = pt.split_negative(text, preset.negative_marker)
+        lead = [MODE_LABELS.get(getattr(self, "mode", ""), "")] + (["idea from socket"] if self.idea_connected else [])
         extra, warnings = [], []
         tokens = pt.count_tokens(self.clip, text) if self.clip is not None else None
         if tokens is not None:
@@ -327,7 +340,7 @@ class Runner:
                 json.loads(text)
             except json.JSONDecodeError:
                 warnings.append("The reply isn't valid JSON.")
-        info = info_line(reply, extra)
+        info = " · ".join([p for p in lead if p] + [info_line(reply, extra)])
         log.info("LM Studio Prompt Enhancer: %s", info)
         if self.opts["debug"]:
             log.info("LM Studio Prompt Enhancer request:\n%s\nreply:\n%s\nthinking:\n%s", preview, reply.text, reply.thinking)
