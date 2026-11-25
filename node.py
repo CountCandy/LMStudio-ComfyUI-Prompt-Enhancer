@@ -99,7 +99,7 @@ class LMStudioPromptEnhancer(io.ComfyNode):
                 io.Boolean.Input("checks", default=True, advanced=True,
                                  tooltip="Check word count, no negative phrasing, no labels, protected text; retry once with a new seed."),
                 io.Int.Input("variations", default=1, min=1, max=16, advanced=True,
-                             tooltip="Prompts per idea, sent in parallel with seeds seed, seed+1, …"),
+                             tooltip="Prompts per idea, sent in parallel, each with its own seed."),
                 io.Boolean.Input("one_per_line", default=False, advanced=True,
                                  tooltip="Each line of words is its own idea; the outputs are lists."),
                 io.Int.Input("token_limit", default=d["token_limit"], min=1, max=100000, advanced=True,
@@ -169,9 +169,10 @@ class LMStudioPromptEnhancer(io.ComfyNode):
                 **kwargs) -> io.NodeOutput:
         uid = str(cls.hidden.unique_id) if cls.hidden is not None else ""
         if hold:
-            saved = HELD.get(uid) or _saved_in_workflow(cls.hidden.extra_pnginfo if cls.hidden else None, uid)
+            # The workflow's own copy first: memory is per node id, which another open workflow may share.
+            saved = _saved_in_workflow(cls.hidden.extra_pnginfo if cls.hidden else None, uid) or HELD.get(uid)
             if not saved or not saved.get("prompt"):
-                raise ValueError("Hold is on, but this node has no prompt yet. Turn hold off and run once.")
+                raise ValueError("Hold is on, but the jar's empty: this node has no prompt yet. Turn hold off and run once.")
             return _output(saved, held=True)
 
         p = presets.LIBRARY.get(preset)
@@ -226,7 +227,7 @@ def _saved_in_workflow(extra_pnginfo, uid: str) -> dict | None:
         last = uid.split(":")[-1]
         for graph in graphs:
             for node in graph.get("nodes") or []:
-                if str(node.get("id")) == last:
+                if str(node.get("id")) == last and node.get("type") == NODE_ID:
                     saved = (node.get("properties") or {}).get(SAVED_PROPERTY)
                     if isinstance(saved, dict) and saved.get("prompt"):
                         return {k: v if isinstance(v, list) else [v] for k, v in saved.items()}

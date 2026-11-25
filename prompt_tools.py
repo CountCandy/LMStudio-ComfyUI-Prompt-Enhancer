@@ -143,10 +143,7 @@ def split_negative(text: str, marker: str = "Negative:") -> tuple[str, str]:
     return text[: m.start()].strip(), text[m.end():].strip()
 
 
-def count_tokens(clip, text: str) -> int | None:
-    """Prompt length in the text encoder's own tokenizer (MOSS: Qwen3.5), template tokens excluded."""
-    if clip is None or not text:
-        return None
+def _count(clip, text: str) -> int:
     try:
         tokens = clip.tokenize(text, return_word_ids=True)
     except TypeError:
@@ -157,8 +154,23 @@ def count_tokens(clip, text: str) -> int | None:
         for batch in batches:
             for item in batch:
                 if isinstance(item, (tuple, list)) and len(item) >= 3:
-                    n += 1 if item[2] else 0
+                    n += 1 if item[2] else 0  # word id 0: start, end and padding tokens
                 else:
                     n += 1
         best = max(best, n)
     return best
+
+
+def count_tokens(clip, text: str) -> int | None:
+    """Prompt length in the text encoder's own tokenizer (MOSS: Qwen3.5).
+
+    Some encoders wrap the prompt in a chat template whose tokens carry word ids too, so the cost
+    of an empty prompt is measured and taken off."""
+    if clip is None or not text:
+        return None
+    total = _count(clip, text)
+    try:
+        overhead = _count(clip, "")
+    except Exception:
+        overhead = 0
+    return max(0, total - overhead)

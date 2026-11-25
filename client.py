@@ -108,6 +108,7 @@ class Reply:
     body: dict = field(default_factory=dict)  # the request actually sent (last attempt)
     dropped: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
+    speed_estimated: bool = False
 
     @property
     def cut_off(self) -> bool:
@@ -468,7 +469,8 @@ class Client:
         reply.seconds = time.monotonic() - started
         reply.model = req.model
         if reply.tokens_per_second is None and reply.tokens_out and reply.seconds > 0:
-            reply.tokens_per_second = reply.tokens_out / reply.seconds
+            reply.tokens_per_second = reply.tokens_out / reply.seconds  # includes reading the prompt
+            reply.speed_estimated = True
         return reply
 
     # -- endpoints -----------------------------------------------------------------------------

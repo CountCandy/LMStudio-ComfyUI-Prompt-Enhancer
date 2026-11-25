@@ -144,7 +144,7 @@ class Panel {
     this.showAdvanced = false;
     this.showGear = false;
     this.lastMin = null;
-    this.live = { image: false, idea: false };
+    this.live = { image: false, idea: false, clip: false };
     this.build();
     panels.add(this);
     // Bypassing or muting a node upstream fires no event here, so the live state is polled.
@@ -179,8 +179,9 @@ class Panel {
 
   liveCheck(force = false) {
     if (!this.node.graph && !force) return;
-    const live = { image: this.sourceActive("image", "IMAGE"), idea: this.sourceActive("idea", "STRING") };
-    if (!force && live.image === this.live.image && live.idea === this.live.idea) return;
+    const live = { image: this.sourceActive("image", "IMAGE"), idea: this.sourceActive("idea", "STRING"),
+                   clip: this.sourceActive("clip", "CLIP") };
+    if (!force && ["image", "idea", "clip"].every((k) => live[k] === this.live[k])) return;
     this.live = live;
     this.markWordsBox();
     if (this.presetChips) this.refresh();
@@ -315,6 +316,16 @@ class Panel {
     return t;
   }
 
+  // Dims a row while its setting can't have any effect, with the reason as its tooltip.
+  inert(row, reason) {
+    this.syncs.push(() => {
+      const why = reason();
+      row.classList.toggle("dim", !!why);
+      row.title = why || "";
+    });
+    return row;
+  }
+
   ticked(label, name, control) {
     const t = this.tick(`use_${name}`);
     const row = this.row(label, t, control);
@@ -376,10 +387,12 @@ class Panel {
     this.syncs.push(() => { if (document.activeElement !== token) token.value = app.extensionManager?.setting?.get?.(TOKEN_SETTING) ?? ""; });
     this.gear.append(this.row("API token", token));
     this.gear.append(this.row("Timeout (s)", this.number("timeout")));
-    this.gear.append(this.row("Stream", this.switch("stream", (on) => on ? "text appears as it's written" : "")));
+    this.gear.append(this.inert(this.row("Stream", this.switch("stream", (on) => on ? "text appears as it's written" : "")),
+      () => this.get("api_mode") === "Native" && "The native endpoint doesn't stream; switch API to OpenAI-compatible."));
     this.gear.append(el("div", "lmse-section", "Pictures"));
-    this.gear.append(this.row("Longest side", this.number("max_image_side", { step: 8 })));
-    this.gear.append(this.row("Batch", this.seg("image_batch", ["first", "all"], ["First image", "All images"])));
+    const noPicture = () => !this.live.image && "Only used while an image is connected and its node is on.";
+    this.gear.append(this.inert(this.row("Longest side", this.number("max_image_side", { step: 8 })), noPicture));
+    this.gear.append(this.inert(this.row("Batch", this.seg("image_batch", ["first", "all"], ["First image", "All images"])), noPicture));
     this.gear.append(el("div", "lmse-section", "Other"));
     this.gear.append(this.row("Debug", this.switch("debug", (on) => on ? "full request and reply in the console" : "")));
     const plain = el("button", "lmse-seg");
@@ -425,7 +438,7 @@ class Panel {
     main.append(this.ticked("Seed", "seed", seedBox));
     main.append(this.row("Thinking", this.seg("reasoning", ["off", "low", "medium", "high", "model default"],
       ["Off", "Low", "Med", "High", "Model"])));
-    main.append(this.row("Hold", this.switch("hold", (on) => on ? "frozen: no call to LM Studio" : "")));
+    main.append(this.row("Hold", this.switch("hold", (on) => on ? "wrapped up: last prompt kept, no call to LM Studio" : "")));
 
     // advanced card
     const adv = el("div", "lmse-card");
@@ -437,16 +450,21 @@ class Panel {
     const a = this.advBody;
     a.append(this.ticked("top_p", "top_p", this.number("top_p", { step: 0.01, float: true })));
     a.append(this.ticked("top_k", "top_k", this.number("top_k")));
-    a.append(this.ticked("min_p", "min_p", this.number("min_p", { step: 0.01, float: true })));
+    a.append(this.inert(this.ticked("min_p", "min_p", this.number("min_p", { step: 0.01, float: true })),
+      () => this.get("api_mode") === "OpenAI-compatible" && "min_p only reaches LM Studio through the Native API (gear)."));
     a.append(this.ticked("Repeat penalty", "repeat_penalty", this.number("repeat_penalty", { step: 0.01, float: true })));
     const stopRow = this.ticked("Stop", "stop", this.area("stop", "one stop string per line"));
     stopRow.classList.add("top");
     a.append(stopRow);
-    a.append(this.row("Thinking room", this.number("thinking_budget", { step: 128 })));
-    a.append(this.row("Checks", this.switch("checks", (on) => on ? "retry once if a check fails" : "")));
+    a.append(this.inert(this.row("Thinking room", this.number("thinking_budget", { step: 128 })),
+      () => (!["low", "medium", "high"].includes(this.get("reasoning")) || !this.get("use_max_tokens")) &&
+        "Added to max tokens only while thinking is Low, Med or High and the max tokens tick is on."));
+    a.append(this.inert(this.row("Checks", this.switch("checks", (on) => on ? "retry once if a check fails" : "")),
+      () => (this.preset()?.structured || this.get("use_response_format")) && "Skipped for JSON output."));
     a.append(this.row("Variations", this.number("variations")));
     a.append(this.row("One per line", this.switch("one_per_line", (on) => on ? "each line is its own idea" : "")));
-    a.append(this.row("Token limit", this.number("token_limit")));
+    a.append(this.inert(this.row("Token limit", this.number("token_limit")),
+      () => !this.live.clip && "Connect your text encoder to the clip socket to count tokens."));
     a.append(this.row("History", this.switch("history", (on) => on ? "saved to history.jsonl" : "")));
     a.append(this.row("On error", this.seg("on_error", ["Stop", "Pass through"])));
     const fmtRow = this.ticked("JSON schema", "response_format", this.area("response_format", "a JSON schema (overrides the preset's)", "mono"));
@@ -465,7 +483,7 @@ class Panel {
     const resBar = el("div", "lmse-head");
     resHead.style.flex = "1";
     resBar.append(resHead, this.copyButton);
-    this.result = el("div", "lmse-result empty", "The prompt appears here after a run.");
+    this.result = el("div", "lmse-result empty", "Nothing in the jar yet: your prompt appears here after a run.");
     this.info = el("div", "lmse-info");
     this.warn = el("div", "lmse-warn");
     this.warn.hidden = true;
@@ -586,8 +604,7 @@ class Panel {
       this.presetChips.replaceChildren(...chips.map(([t, c]) => el("span", "lmse-chip " + c, t)));
       this.lengthRow.classList.toggle("dim", !p.uses_length);
       this.lengthRow.title = p.uses_length ? "" : "This preset has no {length} slot.";
-      this.triggerRow.classList.toggle("dim", !p.uses_trigger);
-      this.triggerRow.title = p.uses_trigger ? "" : "This preset has no {trigger} slot (trigger words are still checked).";
+      this.triggerRow.title = p.uses_trigger ? "" : "This preset has no {trigger} slot: trigger words aren't sent, but they're still checked in the reply.";
     }
     this.renderSlots(p);
   }
@@ -756,7 +773,7 @@ class Panel {
     this.info.textContent = infos.length > 1 ? `${infos.length} prompts · ${infos[0]}` : (infos[0] ?? "");
     this.showWarnings(data.warnings ?? []);
     if (live) {
-      if (data.held) this.setStatus("ok", "Held: last prompt reused");
+      if (data.held) this.setStatus("ok", "Held: same sweet prompt, no call made");
       else if ((data.warnings ?? []).some((w) => w.startsWith("Passed through"))) this.setStatus("bad", "Failed · words passed through");
       else this.setStatus("ok", infos[0]?.split(" · ").slice(0, 1).join("") || "Done");
     }

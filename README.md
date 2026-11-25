@@ -1,5 +1,7 @@
 # LM Studio Prompt Enhancer for ComfyUI
 
+*Sweet prompts, no sugar-coating.*
+
 One ComfyUI node that sends your words and/or a picture to a model running in [LM Studio](https://lmstudio.ai) (made for Gemma 4 31B), with a saved instruction you pick, and returns the rewritten prompt. Its output is plain text for your usual text encoder (MOSS-Image, or anything else), so nothing downstream changes.
 
 Nothing is added behind your back: what you see in the preset and your input is exactly what the model receives, and the **request** output shows the whole request.

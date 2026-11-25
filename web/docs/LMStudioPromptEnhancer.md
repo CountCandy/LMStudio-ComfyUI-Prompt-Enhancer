@@ -1,5 +1,7 @@
 # LM Studio Prompt Enhancer
 
+*Prompts made to order, no sugar-coating: you always see exactly what the model was sent.*
+
 Sends your words and/or a picture to a model running in LM Studio, with a saved instruction (a preset), and returns the rewritten prompt. What you see in the preset and your input is exactly what the model receives; the **request** output shows the whole thing.
 
 ## Getting started

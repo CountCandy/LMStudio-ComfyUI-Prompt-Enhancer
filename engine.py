@@ -78,6 +78,11 @@ DEFAULTS: dict[str, Any] = {
     "idea": None,  # text from the idea socket; when connected it replaces the words box
 }
 
+# Seeds for variations and retries are spaced far apart, so a seed set to "increment" never
+# repeats a prompt from the previous queue.
+VARIATION_STEP = 1_000_003
+RETRY_STEP = 7_919_993
+
 MODE_LABELS = {"words": "words → text", "picture": "picture → text"}
 
 
@@ -165,7 +170,7 @@ def build_request(opts: dict, preset: presets_mod.Preset, idea: str, mode: str,
         raise UserError("extra_json must be a JSON object, like {\"top_k\": 20}.")
     p = dict(params)
     if seed is not None:
-        p["seed"] = int(seed)
+        p["seed"] = int(seed) % 2**32  # llama.cpp-based servers take 32-bit seeds
     reasoning = None if opts["reasoning"] == "model default" else opts["reasoning"]
     return lm.ChatRequest(
         model=opts["model"], system=system, user_text=user_text,
@@ -190,7 +195,7 @@ def info_line(reply: lm.Reply, extra: list[str]) -> str:
         parts.append(f"{reply.tokens_in if reply.tokens_in is not None else '?'} in / "
                      f"{reply.tokens_out if reply.tokens_out is not None else '?'} out")
     if reply.tokens_per_second:
-        parts.append(f"{reply.tokens_per_second:.1f} tok/s")
+        parts.append(f"{'≈' if reply.speed_estimated else ''}{reply.tokens_per_second:.1f} tok/s")
     parts.append(f"{reply.seconds:.1f} s")
     if reply.cut_off:
         parts.append("hit the token limit")
@@ -264,7 +269,7 @@ class Runner:
         for i, idea in enumerate(ideas):
             for v in range(variations):
                 k = i * variations + v
-                seed = None if base_seed is None else (base_seed + k) % (2**63)
+                seed = None if base_seed is None else (base_seed + k * VARIATION_STEP) % (2**63)
                 jobs.append((idea, seed))
 
         single = len(jobs) == 1
@@ -293,7 +298,7 @@ class Runner:
         attempts = 2 if checks_on else 1
         best: tuple[int, JobResult] | None = None
         for attempt in range(attempts):
-            attempt_seed = seed if attempt == 0 or seed is None else seed + 1_000_003
+            attempt_seed = seed if attempt == 0 or seed is None else (seed + RETRY_STEP) % 2**63
             req = build_request(opts, preset, resolved, mode, images, params, attempt_seed)
             reply = self.client.chat(req, self.should_cancel, self.on_stream if stream else None)
             result = self._finish(reply, req, preset, structured, protected, attempt_seed, resolved)

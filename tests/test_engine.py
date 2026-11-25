@@ -162,7 +162,10 @@ def test_lines_and_variations_make_lists(fake):
     fake.replies = [GOOD] * 6
     result = run(fake, words="a fox\n\na bear\n", one_per_line=True, variations=2, seed=10, checks=False)
     assert len(result.jobs) == 4
-    assert sorted(j.seed for j in result.jobs) == [10, 11, 12, 13]
+    step = engine.VARIATION_STEP
+    assert sorted(j.seed for j in result.jobs) == [10, 10 + step, 10 + 2 * step, 10 + 3 * step]
+    # the next queue with seed "increment" (11) shares no seed with this one
+    assert not {11 + k * step for k in range(4)} & {j.seed for j in result.jobs}
     assert sorted(j.idea for j in result.jobs) == ["a bear", "a bear", "a fox", "a fox"]
 
 

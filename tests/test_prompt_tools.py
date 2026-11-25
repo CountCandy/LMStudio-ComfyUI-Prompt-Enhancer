@@ -64,3 +64,15 @@ class FakeClip:
 def test_count_tokens():
     assert pt.count_tokens(FakeClip(), "a b c") == 3
     assert pt.count_tokens(None, "a") is None
+
+
+class TemplateClip:
+    """Like MOSS's tokenizer: chat-template tokens around the prompt carry word ids too."""
+
+    def tokenize(self, text, return_word_ids=False):
+        template = [(900 + i, 1.0, 1) for i in range(10)]
+        return {"qwen35_9b": [template + [(i + 10, 1.0, 1) for i in range(len(text.split()))]]}
+
+
+def test_count_tokens_leaves_out_the_chat_template():
+    assert pt.count_tokens(TemplateClip(), "a b c d") == 4
