@@ -1,0 +1,20 @@
+[project]
+name = "lmstudio-comfyui-prompt-enhancer"
+description = "A ComfyUI node that rewrites your words or describes your picture with a model running in LM Studio, using saved instructions (presets). Made for MOSS-Image."
+version = "1.0.0"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+# No extra packages: the node uses only what ComfyUI already ships (Pillow, NumPy, PyYAML, aiohttp).
+dependencies = []
+
+[project.urls]
+Repository = "https://github.com/CountCandy/LMStudio-ComfyUI-Prompt-Enhancer"
+
+[tool.comfy]
+PublisherId = ""  # your Comfy Registry publisher id, before publishing
+DisplayName = "LM Studio Prompt Enhancer"
+Icon = ""
+includes = []
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

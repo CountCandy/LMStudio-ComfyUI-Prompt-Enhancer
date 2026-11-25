@@ -1,0 +1,179 @@
+/* LM Studio Prompt Enhancer panel.
+   Look adapted from AusBoss nodes (MIT, github.com/ausboss/ComfyUI-AusBoss): dark rounded cards,
+   short section labels, segmented toggles, a gear for rarely changed settings, one teal accent.
+   Colours come from ComfyUI's theme variables, so the panel follows light and dark themes. */
+
+.lmse {
+  --lmse-brand: #00b4aa;
+  --lmse-on-brand: #04201d;
+  --lmse-brand-soft: rgba(0, 180, 170, .16);
+  --lmse-brand-ink: #45d6cb;
+  --lmse-card: color-mix(in srgb, var(--comfy-menu-bg, #101214) 70%, #000 30%);
+  --lmse-fill: var(--comfy-input-bg, #2d3134);
+  --lmse-fill-hover: color-mix(in srgb, var(--comfy-input-bg, #2d3134) 85%, #fff 15%);
+  --lmse-ink: var(--input-text, #f6f7f8);
+  --lmse-label: var(--descrip-text, #b4b9bd);
+  --lmse-faint: color-mix(in srgb, var(--descrip-text, #979da2) 80%, transparent);
+  --lmse-rule: var(--border-color, #2b2f32);
+  --lmse-warn: #e0a040;
+  --lmse-warn-soft: rgba(224, 160, 64, .14);
+  --lmse-danger: #e0605a;
+  --lmse-danger-soft: rgba(224, 96, 90, .14);
+  --lmse-font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --lmse-mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", monospace;
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font: 12px/1.3 var(--lmse-font);
+  color: var(--lmse-ink);
+  pointer-events: auto;
+}
+.lmse *, .lmse *::before, .lmse *::after { box-sizing: border-box; }
+
+.lmse-card {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  padding: 8px;
+  border-radius: 10px;
+  background: var(--lmse-card);
+}
+.lmse-card[hidden] { display: none; }
+
+.lmse-head { display: flex; align-items: center; gap: 6px; min-height: 24px; }
+.lmse-status {
+  display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto;
+  padding: 0 6px; height: 24px; border: none; border-radius: 6px; background: transparent;
+  color: var(--lmse-label); font: 11px var(--lmse-font); cursor: pointer; text-align: left;
+}
+.lmse-status:hover { background: var(--lmse-fill); }
+.lmse-status span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lmse-dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--lmse-faint); }
+.lmse-dot.ok { background: #3ccf7a; box-shadow: 0 0 6px rgba(60, 207, 122, .6); }
+.lmse-dot.warn { background: var(--lmse-warn); }
+.lmse-dot.bad { background: var(--lmse-danger); }
+.lmse-dot.busy { background: var(--lmse-brand); animation: lmse-pulse 1s ease-in-out infinite; }
+@keyframes lmse-pulse { 50% { opacity: .35; } }
+
+.lmse-icon {
+  flex: none; width: 24px; height: 24px; display: grid; place-items: center; padding: 0;
+  border: none; border-radius: 6px; background: var(--lmse-fill); color: var(--lmse-label);
+  font: 600 12px/1 var(--lmse-font); cursor: pointer;
+}
+.lmse-icon:hover { background: var(--lmse-fill-hover); color: var(--lmse-ink); }
+.lmse-icon.on { background: var(--lmse-brand-soft); color: var(--lmse-brand-ink); }
+.lmse-icon svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; }
+
+.lmse-section {
+  display: flex; align-items: center; gap: 6px; margin: 2px 0 0;
+  color: var(--lmse-faint); font: 600 10px/1 var(--lmse-font); letter-spacing: .1em; text-transform: uppercase;
+}
+.lmse-section::after { content: ""; flex: 1; height: 1px; background: var(--lmse-rule); }
+button.lmse-section { padding: 2px 0; border: none; background: transparent; cursor: pointer; text-align: left; }
+button.lmse-section:hover { color: var(--lmse-label); }
+
+.lmse-row { display: flex; align-items: center; gap: 6px; min-height: 26px; }
+.lmse-row.top { align-items: flex-start; }
+.lmse-row.dim { opacity: .45; }
+.lmse-label {
+  flex: none; width: 88px; color: var(--lmse-label); font-size: 11.5px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.lmse-row.top .lmse-label { padding-top: 6px; }
+.lmse-control { flex: 1 1 auto; min-width: 0; display: flex; align-items: center; gap: 6px; }
+
+.lmse-select, .lmse-text, .lmse-num, .lmse-area {
+  width: 100%; min-width: 0; height: 26px; padding: 0 8px; border: 1px solid transparent; border-radius: 6px;
+  background: var(--lmse-fill); color: var(--lmse-ink); font: 12px var(--lmse-font); outline: none;
+}
+.lmse-select {
+  appearance: none; -webkit-appearance: none; padding-right: 24px; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23b4b9bd' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+  text-overflow: ellipsis;
+}
+.lmse-select option { background: var(--comfy-menu-bg, #202325); color: var(--lmse-ink); }
+.lmse-num { font-family: var(--lmse-mono); font-variant-numeric: tabular-nums; }
+.lmse-area { height: auto; min-height: 52px; padding: 6px 8px; resize: vertical; line-height: 1.4; }
+.lmse-area.mono, .lmse-text.mono { font-family: var(--lmse-mono); font-size: 11px; }
+.lmse-select:focus, .lmse-text:focus, .lmse-num:focus, .lmse-area:focus { border-color: var(--lmse-brand); }
+.lmse-select:disabled, .lmse-text:disabled, .lmse-num:disabled { opacity: .45; }
+
+.lmse-seg {
+  display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; width: 100%; height: 26px; padding: 2px;
+  border-radius: 6px; background: var(--lmse-fill);
+}
+.lmse-seg button {
+  min-width: 0; border: none; border-radius: 4px; padding: 0 2px; background: transparent;
+  color: var(--lmse-label); font: 600 11px/1 var(--lmse-font); cursor: pointer; white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.lmse-seg button:hover { color: var(--lmse-ink); }
+.lmse-seg button.on { background: var(--lmse-brand); color: var(--lmse-on-brand); }
+
+.lmse-tick {
+  flex: none; width: 16px; height: 16px; margin: 0; appearance: none; -webkit-appearance: none;
+  border-radius: 4px; background: var(--lmse-fill); cursor: pointer; display: grid; place-items: center;
+}
+.lmse-tick:checked { background: var(--lmse-brand); }
+.lmse-tick:checked::after {
+  content: ""; width: 8px; height: 4px; margin-top: -2px; border: 2px solid var(--lmse-on-brand);
+  border-top: none; border-right: none; transform: rotate(-45deg);
+}
+
+.lmse-switch {
+  flex: none; position: relative; width: 30px; height: 17px; border: none; border-radius: 999px;
+  background: var(--lmse-fill); cursor: pointer; padding: 0;
+}
+.lmse-switch::after {
+  content: ""; position: absolute; top: 3px; left: 3px; width: 11px; height: 11px; border-radius: 50%;
+  background: #62676d; transition: transform .12s, background .12s;
+}
+.lmse-switch.on { background: var(--lmse-brand-soft); }
+.lmse-switch.on::after { transform: translateX(13px); background: var(--lmse-brand); }
+.lmse-switch-note { color: var(--lmse-faint); font-size: 11px; }
+
+.lmse-desc { color: var(--lmse-faint); font-size: 11px; line-height: 1.35; padding: 0 2px; }
+.lmse-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.lmse-chip {
+  height: 18px; padding: 0 8px; border-radius: 4px; background: var(--lmse-brand-soft); color: var(--lmse-brand-ink);
+  font: 600 10px/18px var(--lmse-font); letter-spacing: .02em; white-space: nowrap;
+}
+.lmse-chip.plain { background: var(--lmse-fill); color: var(--lmse-label); }
+.lmse-chip.warn { background: var(--lmse-warn-soft); color: #ffdca8; }
+
+.lmse-linked { color: var(--lmse-brand-ink); font-size: 11px; font-style: italic; }
+
+.lmse-result {
+  min-height: 64px; max-height: 260px; overflow: auto; padding: 7px 9px; border-radius: 6px;
+  background: var(--lmse-fill); color: var(--lmse-ink); font: 12px/1.45 var(--lmse-font);
+  white-space: pre-wrap; word-break: break-word; user-select: text; cursor: text;
+}
+.lmse-result.empty { color: var(--lmse-faint); font-style: italic; }
+.lmse-result.error { background: var(--lmse-danger-soft); color: #ffd9d6; }
+.lmse-result .lmse-sep { display: block; margin: 6px 0; border-top: 1px dashed var(--lmse-rule); }
+.lmse-result .lmse-think { color: var(--lmse-faint); font-style: italic; display: block; margin-bottom: 6px; }
+.lmse-info {
+  color: var(--lmse-faint); font: 10.5px/1.35 var(--lmse-mono); word-break: break-word; padding: 0 2px;
+}
+.lmse-warn {
+  padding: 5px 8px; border-radius: 6px; background: var(--lmse-warn-soft); color: #ffdca8; font-size: 11px; line-height: 1.35; white-space: pre-line;
+}
+.lmse-warn[hidden] { display: none; }
+
+.lmse-help {
+  position: fixed; z-index: 10000; inset: 0; display: grid; place-items: center; background: rgba(0, 0, 0, .45);
+}
+.lmse-help-card {
+  width: min(620px, 92vw); max-height: 82vh; overflow: auto; padding: 18px 22px; border-radius: 10px;
+  background: var(--comfy-menu-bg, #16191b); color: var(--input-text, #f0f2f3); font: 13px/1.5 system-ui, sans-serif;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, .5);
+}
+.lmse-help-card h1 { font-size: 17px; margin: 0 0 8px; }
+.lmse-help-card h2 { font-size: 13px; margin: 14px 0 4px; color: #45d6cb; text-transform: uppercase; letter-spacing: .06em; }
+.lmse-help-card p, .lmse-help-card ul { margin: 4px 0; }
+.lmse-help-card ul { padding-left: 18px; }
+.lmse-help-card code { font-family: ui-monospace, Consolas, monospace; font-size: 12px; background: rgba(255, 255, 255, .08); padding: 0 4px; border-radius: 3px; }
+.lmse-help-card pre { background: rgba(255, 255, 255, .06); padding: 8px 10px; border-radius: 6px; overflow: auto; font-size: 12px; }
