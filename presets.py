@@ -2,7 +2,6 @@
 
     ---
     name: MOSS
-    mode: words            # words | picture | both
     description: Turns a short idea into a MOSS prompt.
     user_template: "The user's idea: {words}"
     settings:              # optional starting values; the node's widgets still win
