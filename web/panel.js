@@ -511,12 +511,20 @@ class Panel {
   }
 
   // The frontend sizes a DOM widget's element itself, so the panel content sits in a wrapper and
-  // its natural height is what the node is told.
+  // its natural height is what the node is told. That height is the layout height (offsetHeight),
+  // which zoom never changes: the on-screen size lags the zoom by a few frames, and measuring it
+  // made the words box between the panels jump while zooming. While the panel is hidden (e.g. at
+  // low zoom) it measures 0, so the last good height is kept.
   mount(name, element) {
     const wrapper = el("div");
     wrapper.style.cssText = "width:100%;overflow:visible";
     wrapper.append(element);
-    const height = () => (Math.ceil(element.getBoundingClientRect().height / (app.canvas?.ds?.scale || 1)) || element.scrollHeight || 60) + 6;
+    let last = 0;
+    const height = () => {
+      const h = element.offsetHeight;
+      if (h > 0) last = h;
+      return (last || 60) + 6;
+    };
     const widget = this.node.addDOMWidget(name, "lmse_panel", wrapper, {
       serialize: false,
       hideOnZoom: false,
