@@ -172,7 +172,7 @@ class _Call:
                 pass
 
 
-def _read_json(resp) -> Any:
+def _read_json(resp, call: "_Call | None" = None) -> Any:
     raw = resp.read().decode("utf-8", "replace")
     if resp.status >= 400:
         raise RequestRejected(resp.status, raw)
@@ -484,7 +484,7 @@ class Client:
         else:
             note = None
         reply = self._send("/v1/chat/completions", body, should_cancel,
-                           (lambda resp: self._read_sse(resp, on_text, should_cancel)) if stream else None,
+                           (lambda resp, call: self._read_sse(resp, on_text, call)) if stream else None,
                            parse_openai)
         reply.endpoint = "/v1/chat/completions"
         if note:
@@ -534,7 +534,7 @@ class Client:
                 resp = call.open("POST", path, body)
                 if resp.status >= 400:
                     raise RequestRejected(resp.status, resp.read().decode("utf-8", "replace"))
-                box["value"] = reader(resp)
+                box["value"] = reader(resp, call)
             except BaseException as e:  # handed to the caller
                 box["error"] = e
 
@@ -563,13 +563,16 @@ class Client:
         return box.get("value")
 
     @staticmethod
-    def _read_sse(resp, on_text: OnText | None, should_cancel) -> Reply:
+    def _read_sse(resp, on_text: OnText | None, call: "_Call") -> Reply:
         text, thinking = [], []
         finish = None
         usage: dict = {}
         stats: dict = {}
         last_push = 0.0
         for raw in resp:
+            # Cancelled or timed out: text already received must not reach the node any more.
+            if call.closed:
+                raise Cancelled("Cancelled.")
             line = raw.decode("utf-8", "replace").strip()
             if not line.startswith("data:"):
                 continue

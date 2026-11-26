@@ -11,6 +11,7 @@ const NODE = "LMStudioPromptEnhancer";
 const BASE = new URL(".", import.meta.url).href;
 const SAVED = "lmse_saved";
 const PLAIN = "lmse_plain";
+const UI = "lmse_ui"; // which panel sections are open, saved with the workflow
 const TOKEN_SETTING = "LMStudioPromptEnhancer.ApiToken";
 const panels = new Set();
 
@@ -82,6 +83,9 @@ function showWidget(w) {
   delete w.__lmseHidden;
 }
 
+// A panel has its real size only once it's shown and as wide as the node.
+const laidOut = (element) => element.offsetHeight > 0 && element.offsetWidth > 100;
+
 // ---------------------------------------------------------------------------------------------
 // shared data
 
@@ -141,8 +145,12 @@ class Panel {
     this.syncs = [];
     this.presets = [];
     this.models = [];
-    this.showAdvanced = false;
-    this.showGear = false;
+    // Open sections are saved with the workflow, so a node comes back the size it was saved at.
+    const ui = node.properties?.[UI] ?? {};
+    this.showAdvanced = !!ui.advanced;
+    this.showGear = !!ui.gear;
+    // A node loaded from a workflow keeps its saved size; a new one gets room for a few lines of words.
+    this.savedSize = node.__lmseSavedSize ?? null;
     this.lastMin = null;
     this.live = { image: false, idea: false, clip: false };
     this.build();
@@ -507,16 +515,24 @@ class Panel {
     this.refresh();
     this.loadPresets(false);
     this.loadModels();
-    requestAnimationFrame(() => this.fit(true));
+    requestAnimationFrame(() => this.fit());
   }
 
   // The frontend sizes a DOM widget's element itself, so the panel content sits in a wrapper and
-  // its natural height is what the node is told.
+  // its natural height is what the node is told. That height is the layout height (offsetHeight),
+  // which zoom never changes: the on-screen size lags the zoom by a few frames, and measuring it
+  // made the words box between the panels jump while zooming. While the panel is hidden (e.g. at
+  // low zoom) it measures 0, so the last good height is kept.
   mount(name, element) {
     const wrapper = el("div");
     wrapper.style.cssText = "width:100%;overflow:visible";
     wrapper.append(element);
-    const height = () => (Math.ceil(element.getBoundingClientRect().height / (app.canvas?.ds?.scale || 1)) || element.scrollHeight || 60) + 6;
+    let last = 0;
+    const height = () => {
+      // Before the frontend gives the panel its width, text wraps into a tall column: not a real height.
+      if (laidOut(element)) last = element.offsetHeight;
+      return (last || 60) + 6;
+    };
     const widget = this.node.addDOMWidget(name, "lmse_panel", wrapper, {
       serialize: false,
       hideOnZoom: false,
@@ -541,16 +557,23 @@ class Panel {
     ws.splice(at + 2, 0, this.bottomWidget);
   }
 
-  fit(initial = false) {
+  // Keeps the words box the size it is (or was saved at) while the panels around it change height.
+  fit() {
     const node = this.node;
-    if (!node.graph && !initial) return;
+    if (!node.graph) return;
+    // Until both panels are laid out (or while ComfyUI hides them) their heights are placeholders.
+    if (!laidOut(this.top) || !laidOut(this.bottom)) return;
     const min = node.computeSize?.();
     if (!min) return;
-    const extra = this.lastMin == null ? 120 : Math.max(0, node.size[1] - this.lastMin);
+    const first = this.lastMin == null;
+    let extra;
+    if (this.lastMin != null) extra = Math.max(0, node.size[1] - this.lastMin);
+    else if (this.savedSize) extra = Math.max(0, this.savedSize[1] - min[1]);
+    else extra = 120;
     this.lastMin = min[1];
     const h = Math.max(min[1], min[1] + extra);
-    if (Math.abs(h - node.size[1]) > 1 || node.size[0] < 340) {
-      node.setSize([Math.max(node.size[0], 340), h]);
+    if (first || Math.abs(h - node.size[1]) > 1 || node.size[0] < 340) {
+      node.setSize([Math.max(node.size[0], 340), h]); // also re-lays out the widgets
       node.setDirtyCanvas?.(true, true);
     }
   }
@@ -578,6 +601,11 @@ class Panel {
 
   refresh() {
     this.syncs.forEach((f) => f());
+    this.node.properties ??= {};
+    const ui = this.node.properties[UI];
+    if (!ui || ui.advanced !== this.showAdvanced || ui.gear !== this.showGear) {
+      this.node.properties[UI] = { advanced: this.showAdvanced, gear: this.showGear };
+    }
     this.gear.hidden = !this.showGear;
     this.gearButton.classList.toggle("on", this.showGear);
     this.advBody.hidden = !this.showAdvanced;
@@ -757,7 +785,21 @@ class Panel {
 
   // -- results --------------------------------------------------------------------------------
 
+  // While text streams in, the result box keeps its height (and scrolls), so the node doesn't
+  // shrink when a run starts and regrow as words arrive. It settles once, when the run ends.
+  lockResult() {
+    if (this.resultLocked) return;
+    this.resultLocked = true;
+    this.result.style.height = Math.max(this.result.offsetHeight, 64) + "px";
+  }
+
+  unlockResult() {
+    this.resultLocked = false;
+    this.result.style.height = "";
+  }
+
   showResult(data, live) {
+    this.unlockResult();
     const prompts = [].concat(data.prompt ?? []);
     const negatives = [].concat(data.negative ?? []);
     this.result.classList.remove("empty", "error");
@@ -780,6 +822,8 @@ class Panel {
   }
 
   showStream(text, thinking) {
+    if (this.halted) return; // late text from a run that was cancelled or failed
+    this.lockResult();
     this.result.classList.remove("empty", "error");
     this.result.replaceChildren();
     if (thinking) this.result.append(el("span", "lmse-think", thinking));
@@ -789,6 +833,7 @@ class Panel {
   }
 
   showError(message) {
+    this.unlockResult();
     this.result.classList.remove("empty");
     this.result.classList.add("error");
     this.result.textContent = message.trim();
@@ -852,9 +897,14 @@ app.registerExtension({
   setup() {
     loadCss();
     api.addEventListener("lmse.stream", ({ detail }) => panelFor(detail?.node)?.showStream(detail.text, detail.thinking));
+    api.addEventListener("execution_start", () => panels.forEach((p) => { p.halted = false; }));
+    api.addEventListener("execution_interrupted", ({ detail }) => {
+      const p = panelFor(detail?.node_id);
+      if (p && detail?.node_type === NODE) { p.halted = true; p.unlockResult(); p.setStatus("warn", "Cancelled"); }
+    });
     api.addEventListener("execution_error", ({ detail }) => {
       const p = panelFor(detail?.node_id);
-      if (p && detail?.node_type === NODE) p.showError(detail.exception_message ?? "Failed.");
+      if (p && detail?.node_type === NODE) { p.halted = true; p.showError(detail.exception_message ?? "Failed."); }
     });
   },
 
@@ -874,6 +924,10 @@ app.registerExtension({
     const configure = nodeType.prototype.onConfigure;
     nodeType.prototype.onConfigure = function () {
       const r = configure?.apply(this, arguments);
+      // Loaded from a workflow: remember the saved size now, because ComfyUI grows the node to fit
+      // the plain widgets before the panel is built.
+      const info = arguments[0];
+      this.__lmseSavedSize = Array.isArray(info?.size) ? [info.size[0], info.size[1]] : [this.size[0], this.size[1]];
       setTimeout(() => {
         if (this.properties?.[PLAIN]) { this.panel?.destroy(); return; }
         attach(this);
