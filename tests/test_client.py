@@ -163,3 +163,17 @@ def test_test_connection(fake):
     assert ok["ok"] and ok["vision"] is True and "accepts images" in ok["message"]
     assert not lm.test_connection(fake.url, "qwen/qwen3-8b")["ok"]
     assert not lm.test_connection("http://127.0.0.1:9", "x", timeout=2)["reachable"]
+
+
+def test_no_text_after_cancel_while_streaming(fake):
+    fake.delay = 1.0  # 1 s before the reply, then 0.1 s per word
+    seen = []
+    flag = threading.Event()
+    threading.Timer(1.6, flag.set).start()
+    with pytest.raises(lm.Cancelled):
+        lm.Client(fake.url, stream=True).chat(req(), should_cancel=flag.is_set,
+                                              on_text=lambda t, th: seen.append(time.monotonic()))
+    stopped = time.monotonic()
+    time.sleep(1.0)  # the reader thread would still be delivering words here
+    assert seen, "some text should have streamed before the cancel"
+    assert not [t for t in seen if t > stopped]
